@@ -11,6 +11,16 @@ MONTH_LIST = ['January', 'February', 'March', 'April', 'May', 'June',
               'July', 'August', 'September', 'October', 'November', 'December']
 
 
+def secs_to_time(seconds):
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
+    return hours, minutes, seconds
+
+
+def time_to_str(hours, minutes, seconds):
+    return '{}:{}:{}'.format(str(hours).zfill(2), str(minutes).zfill(2), str(seconds).zfill(2))
+
+
 class ChatEntry:
     def __init__(self, message):
         match = msg_re.match(message)
@@ -33,15 +43,9 @@ class VodEntry:
         self.time_finished = self.time_started + timedelta(seconds=length)
 
     def __str__(self):
-        return 'VOD_ID: {}, URL: {}, length: {}:{}:{}, from: {}, until: {}'.format(
-            self.broadcast_id, self.url, *secs_to_time(self.length), self.time_started.strftime('(%b %d) %H:%M'),
-            self.time_finished.strftime('(%b %d) %H:%M'))
-
-
-def secs_to_time(seconds):
-    hours, seconds = divmod(seconds, 3600)
-    minutes, seconds = divmod(seconds, 60)
-    return hours, minutes, seconds
+        return 'VOD_ID: {}, URL: {}, length: {}, from: {}, until: {}'.format(
+            self.broadcast_id, self.url, time_to_str(*secs_to_time(self.length)),
+            self.time_started.strftime('(%b %d) %H:%M'), self.time_finished.strftime('(%b %d) %H:%M'))
 
 
 class UnknownStreamerError(Exception):
