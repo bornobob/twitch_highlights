@@ -22,15 +22,14 @@ def time_to_str(hours, minutes, seconds):
 
 
 class ChatEntry:
-    def __init__(self, message):
+    def __init__(self, message, year, month, day):
         match = msg_re.match(message)
         if not match:
             raise ValueError('The given message is not a valid message.', message)
-        self.hours = int(match['hrs'])
-        self.minutes = int(match['mins'])
-        self.seconds = int(match['secs'])
-        self.timezone = match['timezone']
-        self.author = match['author']
+        hours = int(match['hrs'])
+        minutes = int(match['mins'])
+        seconds = int(match['secs'])
+        self.date = datetime(year, month, day, hours, minutes, seconds)
         self.message = match['msg']
 
 
@@ -51,6 +50,7 @@ class VodEntry:
 class StreamEntry:
     def __init__(self, vods):
         self.vods = vods
+        self.chats = []
 
     def __str__(self):
         return '-' * 20 + '\n' + '\n'.join(' - ' + str(x) for x in self.vods)
@@ -60,6 +60,37 @@ class UnknownStreamerError(Exception):
     pass
 
 
+class LogtextCache:
+    def __init__(self, streamer_name):
+        self.streamer_name = streamer_name
+        self.saved_dates = {}
+
+    def get_log_url(self, year, month, day):
+        return 'https://overrustlelogs.net/{0}%20chatlog/{1}%20{2}/{2}-{3}-{4}.txt'.format(self.streamer_name,
+                                                                                           MONTH_LIST[month - 1],
+                                                                                           year,
+                                                                                           str(month).zfill(2),
+                                                                                           str(day).zfill(2))
+
+    def get_log_text_by_url(self, year, month, day):
+        r = requests.get(self.get_log_url(year, month, day))
+        return r.text
+
+    def create_new_entry(self, year, month, day):
+        separated_msgs = []
+        for c in self.get_log_text_by_url(year, month, day).split('\n')[:-1]:
+            separated_msgs.append(ChatEntry(c, year, month, day))
+        return separated_msgs
+
+    def get_messages_by_date(self, year, month, day):
+        if (year, month, day) in self.saved_dates.keys():
+            return self.saved_dates[(year, month, day)]
+        else:
+            new_entry = self.create_new_entry(year, month, day)
+            self.saved_dates[(year, month, day)] = new_entry
+            return new_entry
+
+
 class TwitchHighligher:
     def __init__(self, streamer_name, year, month, day, max_inter_stream_time=3600):
         self.streamer_name = streamer_name
@@ -67,6 +98,7 @@ class TwitchHighligher:
         self.month = month
         self.day = day
         self.max_inter_stream_time = max_inter_stream_time
+        self.logtext_cache = LogtextCache(streamer_name)
         self.streamer_id = self.get_streamer_id()
 
     def get_streamer_id(self):
@@ -83,23 +115,6 @@ class TwitchHighligher:
         r = requests.get(twitch_vod_url, headers=request_headers)
         jsondata = r.json()
         return jsondata['_total'], jsondata['videos'][::-1]
-
-    def get_logs_url(self, year, month, day):
-        return 'https://overrustlelogs.net/{0}%20chatlog/{1}%20{2}/{2}-{3}-{4}.txt'.format(self.streamer_name,
-                                                                                           MONTH_LIST[month - 1],
-                                                                                           year,
-                                                                                           str(month).zfill(2),
-                                                                                           str(day).zfill(2))
-
-    def get_log_text_by_url(self, year, month, day):
-        r = requests.get(self.get_logs_url(year, month, day))
-        return r.text
-
-    def get_messages_by_log_text(self, year, month, day):
-        separated_msgs = []
-        for c in self.get_log_text_by_url(year, month, day).split('\n')[:-1]:
-            separated_msgs.append(ChatEntry(c))
-        return separated_msgs
 
     @staticmethod
     def convert_raw_vods(raw_vods):
@@ -161,14 +176,11 @@ class TwitchHighligher:
             stream_entries.append(StreamEntry(temp_stream))
         return stream_entries
 
-    def get_highlights(self):
+    def get_stream_entries_by_date(self):
         total_vods, raw_vods = self.get_vods_by_streamer_id()
         vods = self.convert_raw_vods(raw_vods)
         relevant_vods = self.get_relevant_stream_vods(vods, self.get_vods_on_date(vods))
-        stream_entries = self.get_stream_entries_from_vods(relevant_vods)
-        for s in stream_entries:
-            print(s)
+        return self.get_stream_entries_from_vods(relevant_vods)
 
 
-th = TwitchHighligher('loltyler1', 2019, 3, 13)
-th.get_highlights()
+th = TwitchHighligher('loltyler1', 2019, 3, 12)
