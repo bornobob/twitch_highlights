@@ -1,7 +1,7 @@
 import requests
 import re
 import json
-from datetime import datetime, timedelta, timezone, time, date
+from datetime import datetime, timedelta, timezone, time
 
 msg_re = re.compile(r'\[[\d]+-[\d]+-[\d]+ (?P<hrs>[\d]+):(?P<mins>[\d]+):(?P<secs>[\d]+) '
                     r'(?P<timezone>[a-zA-Z]+)\] (?P<author>[^:]+): (?P<msg>.*)')
@@ -9,16 +9,6 @@ client_id = json.loads(open('credentials.json', 'r').read())['client_id']
 request_headers = {'Accept': 'application/vnd.twitchtv.v5+json', 'Client-ID': client_id}
 MONTH_LIST = ['January', 'February', 'March', 'April', 'May', 'June',
               'July', 'August', 'September', 'October', 'November', 'December']
-
-
-def secs_to_time(seconds):
-    hours, seconds = divmod(seconds, 3600)
-    minutes, seconds = divmod(seconds, 60)
-    return hours, minutes, seconds
-
-
-def time_to_str(hours, minutes, seconds):
-    return '{}:{}:{}'.format(str(hours).zfill(2), str(minutes).zfill(2), str(seconds).zfill(2))
 
 
 class ChatEntry:
@@ -37,14 +27,13 @@ class VodEntry:
     def __init__(self, broadcast_id, url, length, broadcast_at):
         self.broadcast_id = broadcast_id
         self.url = url
-        self.length = length
         self.time_started = datetime.strptime(broadcast_at, '%Y-%m-%dT%H:%M:%SZ')
         self.time_finished = self.time_started + timedelta(seconds=length)
         self.messages = []
 
     def __str__(self):
         return 'VOD_ID: {}, URL: {}, length: {}, from: {}, until: {}'.format(
-            self.broadcast_id, self.url, time_to_str(*secs_to_time(self.length)),
+            self.broadcast_id, self.url, str(self.time_finished - self.time_started),
             self.time_started.strftime('(%b %d) %H:%M'), self.time_finished.strftime('(%b %d) %H:%M'))
 
 
@@ -66,11 +55,11 @@ class LogtextCache:
         self.saved_dates = {}
 
     def get_log_url(self, year, month, day):
-        return 'https://overrustlelogs.net/{0}%20chatlog/{1}%20{2}/{2}-{3}-{4}.txt'.format(self.streamer_name,
-                                                                                           MONTH_LIST[month - 1],
-                                                                                           year,
-                                                                                           str(month).zfill(2),
-                                                                                           str(day).zfill(2))
+        return 'https://overrustlelogs.net/{0}%20chatlog/{1}%20{2}/{2}-{3:02}-{4:02}.txt'.format(self.streamer_name,
+                                                                                                 MONTH_LIST[month - 1],
+                                                                                                 year,
+                                                                                                 month,
+                                                                                                 day)
 
     def get_log_text_by_url(self, year, month, day):
         r = requests.get(self.get_log_url(year, month, day))
