@@ -1,7 +1,7 @@
 import requests
 import re
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time, date
 
 msg_re = re.compile(r'\[[\d]+-[\d]+-[\d]+ (?P<hrs>[\d]+):(?P<mins>[\d]+):(?P<secs>[\d]+) '
                     r'(?P<timezone>[a-zA-Z]+)\] (?P<author>[^:]+): (?P<msg>.*)')
@@ -40,6 +40,7 @@ class VodEntry:
         self.length = length
         self.time_started = datetime.strptime(broadcast_at, '%Y-%m-%dT%H:%M:%SZ')
         self.time_finished = self.time_started + timedelta(seconds=length)
+        self.messages = []
 
     def __str__(self):
         return 'VOD_ID: {}, URL: {}, length: {}, from: {}, until: {}'.format(
@@ -50,7 +51,6 @@ class VodEntry:
 class StreamEntry:
     def __init__(self, vods):
         self.vods = vods
-        self.chats = []
 
     def __str__(self):
         return '-' * 20 + '\n' + '\n'.join(' - ' + str(x) for x in self.vods)
@@ -89,6 +89,31 @@ class LogtextCache:
             new_entry = self.create_new_entry(year, month, day)
             self.saved_dates[(year, month, day)] = new_entry
             return new_entry
+
+    def get_messages_on_date(self, begin_time, end_time):
+        all_messages = self.get_messages_by_date(begin_time.year, begin_time.month, begin_time.day)
+        messages = []
+        for m in all_messages:
+            if m.date >= begin_time:
+                if m.date <= end_time:
+                    messages.append(m)
+                else:
+                    break
+        return messages
+
+    def get_messages_between_dates(self, begin_date, end_date):
+        current_date = begin_date
+        messages = []
+        delta_days = (end_date.date() - begin_date.date()).days
+        print('delta_days', delta_days)
+        for _ in range(delta_days + 1):
+            if current_date.date() == end_date.date():
+                messages += self.get_messages_on_date(current_date, end_date)
+            else:
+                messages += self.get_messages_on_date(current_date, current_date.combine(current_date, time.max))
+            current_date = current_date + timedelta(days=1)
+            current_date = current_date.combine(current_date, time.min)
+        return messages
 
 
 class TwitchHighligher:
@@ -182,5 +207,15 @@ class TwitchHighligher:
         relevant_vods = self.get_relevant_stream_vods(vods, self.get_vods_on_date(vods))
         return self.get_stream_entries_from_vods(relevant_vods)
 
+    def bind_messages_to_stream_entries(self, entries):
+        for s in entries:
+            for v in s.vods:
+                v.messages = self.logtext_cache.get_messages_between_dates(v.time_started, v.time_finished)
+
+    def get_highlights(self):
+        stream_entries = self.get_stream_entries_by_date()
+        self.bind_messages_to_stream_entries(stream_entries)
+
 
 th = TwitchHighligher('loltyler1', 2019, 3, 12)
+th.get_highlights()
