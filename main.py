@@ -1,107 +1,12 @@
 import requests
-import re
 import json
-from datetime import datetime, timedelta, timezone, time
+from datetime import datetime, timezone
+from models import StreamEntry, VodEntry
+from exceptions import UnknownStreamerError
+from caches import LogtextCache
 
-msg_re = re.compile(r'\[[\d]+-[\d]+-[\d]+ (?P<hrs>[\d]+):(?P<mins>[\d]+):(?P<secs>[\d]+) '
-                    r'(?P<timezone>[a-zA-Z]+)\] (?P<author>[^:]+): (?P<msg>.*)')
 client_id = json.loads(open('credentials.json', 'r').read())['client_id']
 request_headers = {'Accept': 'application/vnd.twitchtv.v5+json', 'Client-ID': client_id}
-MONTH_LIST = ['January', 'February', 'March', 'April', 'May', 'June',
-              'July', 'August', 'September', 'October', 'November', 'December']
-
-
-class ChatEntry:
-    def __init__(self, message, year, month, day):
-        match = msg_re.match(message)
-        if not match:
-            raise ValueError('The given message is not a valid message.', message)
-        hours = int(match['hrs'])
-        minutes = int(match['mins'])
-        seconds = int(match['secs'])
-        self.date = datetime(year, month, day, hours, minutes, seconds)
-        self.message = match['msg']
-
-
-class VodEntry:
-    def __init__(self, broadcast_id, url, length, broadcast_at):
-        self.broadcast_id = broadcast_id
-        self.url = url
-        self.time_started = datetime.strptime(broadcast_at, '%Y-%m-%dT%H:%M:%SZ')
-        self.time_finished = self.time_started + timedelta(seconds=length)
-        self.messages = []
-
-    def __str__(self):
-        return 'VOD_ID: {}, URL: {}, length: {}, from: {}, until: {}'.format(
-            self.broadcast_id, self.url, str(self.time_finished - self.time_started),
-            self.time_started.strftime('(%b %d) %H:%M'), self.time_finished.strftime('(%b %d) %H:%M'))
-
-
-class StreamEntry:
-    def __init__(self, vods):
-        self.vods = vods
-
-    def __str__(self):
-        return '-' * 20 + '\n' + '\n'.join(' - ' + str(x) for x in self.vods)
-
-
-class UnknownStreamerError(Exception):
-    pass
-
-
-class LogtextCache:
-    def __init__(self, streamer_name):
-        self.streamer_name = streamer_name
-        self.saved_dates = {}
-
-    def get_log_url(self, year, month, day):
-        return 'https://overrustlelogs.net/{0}%20chatlog/{1}%20{2}/{2}-{3:02}-{4:02}.txt'.format(self.streamer_name,
-                                                                                                 MONTH_LIST[month - 1],
-                                                                                                 year,
-                                                                                                 month,
-                                                                                                 day)
-
-    def get_log_text_by_url(self, year, month, day):
-        r = requests.get(self.get_log_url(year, month, day))
-        return r.text
-
-    def create_new_entry(self, year, month, day):
-        separated_msgs = []
-        for c in self.get_log_text_by_url(year, month, day).split('\n')[:-1]:
-            separated_msgs.append(ChatEntry(c, year, month, day))
-        return separated_msgs
-
-    def get_messages_by_date(self, year, month, day):
-        if (year, month, day) in self.saved_dates.keys():
-            return self.saved_dates[(year, month, day)]
-        else:
-            new_entry = self.create_new_entry(year, month, day)
-            self.saved_dates[(year, month, day)] = new_entry
-            return new_entry
-
-    def get_messages_on_date(self, begin_time, end_time):
-        all_messages = self.get_messages_by_date(begin_time.year, begin_time.month, begin_time.day)
-        messages = []
-        for m in all_messages:
-            if m.date >= begin_time:
-                if m.date <= end_time:
-                    messages.append(m)
-                else:
-                    break
-        return messages
-
-    def get_messages_between_dates(self, begin_date, end_date):
-        current_date = begin_date
-        messages = []
-        delta_days = (end_date.date() - begin_date.date()).days
-        for _ in range(delta_days + 1):
-            if current_date.date() == end_date.date():
-                messages += self.get_messages_on_date(current_date, end_date)
-            else:
-                messages += self.get_messages_on_date(current_date, current_date.combine(current_date, time.max))
-            current_date = current_date + timedelta(days=1)
-            current_date = current_date.combine(current_date, time.min)
-        return messages
 
 
 class TwitchHighligher:

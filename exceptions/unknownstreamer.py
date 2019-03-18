@@ -1,0 +1,2 @@
+class UnknownStreamerError(Exception):
+    pass
