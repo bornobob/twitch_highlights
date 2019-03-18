@@ -105,7 +105,6 @@ class LogtextCache:
         current_date = begin_date
         messages = []
         delta_days = (end_date.date() - begin_date.date()).days
-        print('delta_days', delta_days)
         for _ in range(delta_days + 1):
             if current_date.date() == end_date.date():
                 messages += self.get_messages_on_date(current_date, end_date)
