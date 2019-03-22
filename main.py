@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from models import StreamEntry, VodEntry
 from exceptions import UnknownStreamerError
 from caches import LogtextCache
+from messageanalyzer import MessageAnalyzer
+
 
 client_id = json.loads(open('credentials.json', 'r').read())['client_id']
 request_headers = {'Accept': 'application/vnd.twitchtv.v5+json', 'Client-ID': client_id}
@@ -108,6 +110,12 @@ class TwitchHighligher:
     def get_highlights(self):
         stream_entries = self.get_stream_entries_by_date()
         self.bind_messages_to_stream_entries(stream_entries)
+        for s in stream_entries:
+            ma = MessageAnalyzer(s)
+            urls = ma.get_twitch_highlight_urls()
+            print(s)
+            for v in urls.keys():
+                print(s.get_vod_by_id(v), '\n -', '\n - '.join(urls[v]))
 
 
 th = TwitchHighligher('loltyler1', 2019, 3, 12)

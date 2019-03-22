@@ -9,6 +9,9 @@ class VodEntry:
         self.time_finished = self.time_started + timedelta(seconds=length)
         self.messages = []
 
+    def get_length_in_seconds(self):
+        return int(abs((self.time_finished - self.time_started).total_seconds()))
+
     def __str__(self):
         return 'VOD_ID: {}, URL: {}, length: {}, from: {}, until: {}'.format(
             self.broadcast_id, self.url, str(self.time_finished - self.time_started),
