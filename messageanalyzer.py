@@ -43,15 +43,16 @@ class MessageAnalyzer:
         return vod_url + '/' + twitch_highlight_url.format(hours, minutes, seconds)
 
     @staticmethod
-    def subtract_time_from_peaks(peaks):
-        return [max(0, t - 30) for t in peaks]
+    def subtract_time_from_peaks(peaks, seconds):
+        return [max(0, t - seconds) for t in peaks]
 
-    def get_twitch_highlight_urls(self, distance=150, prominence=1):
+    def get_twitch_highlight_urls(self, distance=150, prominence=1, subtract_seconds=30):
         result_dict = {}
         for v in self.stream_entry.vods:
             frequencies = self.get_message_frequencies(v.broadcast_id)
             peaks = self.get_frequency_peaks(frequencies, distance, prominence)
-            peaks = self.subtract_time_from_peaks(peaks)
+            peaks = self.subtract_time_from_peaks(peaks, subtract_seconds)
+            peaks.sort(key=lambda x: frequencies[x])
             result_dict[v.broadcast_id] = [self.build_twitch_highlight_url(v.url, *self.seconds_to_time(secs))
                                            for secs in peaks]
         return result_dict
